@@ -1,25 +1,33 @@
 {
   "name": "nexus-oss-observatory",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint",
-    "start": "next start"
+    "start": "next start",
+    "supabase:link": "supabase link",
+    "supabase:push": "supabase db push",
+    "supabase:reset": "supabase db reset",
+    "import:data": "node scripts/import-to-supabase.js"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
     "@radix-ui/react-popover": "^1.1.15",
+    "@supabase/supabase-js": "^2.90.1",
     "@types/topojson-client": "^3.1.5",
     "@vnedyalk0v/react19-simple-maps": "^1.2.1",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "csv-parser": "^3.2.0",
     "d3-geo": "^3.1.1",
     "framer-motion": "^12.23.25",
     "jiti": "latest",
     "lucide-react": "0.555.0",
     "next": "16.0.6",
+    "papaparse": "^5.5.3",
     "prop-types": "latest",
     "react": "19.2.0",
     "react-dom": "19.2.0",
@@ -38,6 +46,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.6",
     "postcss": "8.5.6",
+    "supabase": "^2.72.8",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

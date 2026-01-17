@@ -31,3 +31,7 @@ next-env.d.ts
 *.json.gz
 /data/
 /datasets/
+
+# supabase
+.branches/
+.temp/
