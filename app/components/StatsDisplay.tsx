@@ -2,11 +2,13 @@
 
 import type React from "react"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatNumber, topCountries } from "../data/country-data"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Info } from "lucide-react"
+import { useStorm } from "../context/StormContext"
+import { LiveAnalysis } from "./LiveAnalysis"
 
 const weighted = [
   { code: "US", weight: 40 },
@@ -321,19 +323,31 @@ function MetricRow({
 }
 
 export function TotalContributions() {
-  const [storm, setStorm] = useState(false)
-  const { value, rate } = useAnimatedNumber(115833330378, 480710, storm ? 10 : 1)
+  const { isStormActive, stormMultiplier, toggleStorm } = useStorm()
+  const { value, rate } = useAnimatedNumber(115833330378, 480710, stormMultiplier)
 
   return (
     <div className="space-y-2 relative">
       <h2 className="my-0 font-mono font-medium text-sm tracking-tight uppercase text-gray-900">Total contributions</h2>
       <div className="text-4xl md:text-5xl tracking-normal font-mono tabular-nums">{formatNumber(value)}</div>
-      <div className="text-sm text-gray-900 font-mono tabular-nums">{formatNumber(rate)}/s</div>
+      <motion.div
+        className="text-sm text-gray-900 font-mono tabular-nums"
+        animate={{
+          color: isStormActive ? ["#737373", "#ef4444", "#737373"] : "#737373",
+        }}
+        transition={{
+          duration: isStormActive ? 0.8 : 0.3,
+          repeat: isStormActive ? Infinity : 0,
+          ease: "easeInOut",
+        }}
+      >
+        {formatNumber(rate)}/s
+      </motion.div>
       <button
-        onClick={() => setStorm(!storm)}
+        onClick={toggleStorm}
         className="absolute bottom-0 right-0 text-xs font-mono uppercase px-2 py-1 bg-gray-alpha-100 hover:bg-gray-alpha-200 border border-gray-alpha-400 rounded text-gray-900 transition-colors"
       >
-        {storm ? "End Peak" : "Peak Storm"}
+        {isStormActive ? "End Storm" : "Peak Storm"}
       </button>
     </div>
   )
@@ -370,8 +384,8 @@ function CountryRow({
 }
 
 export function TopCountries() {
-  const [storm, setStorm] = useState(false)
-  const incrementRates = [160000, 24000, 19000, 17000, 15000, 15000, 14000]
+  const { stormMultiplier } = useStorm()
+  const incrementRates = [160000, 24000, 19000, 17000, 15000, 15000, 14000, 13000]
 
   return (
     <div className="space-y-2">
@@ -379,12 +393,12 @@ export function TopCountries() {
         Top countries by contributions
       </h2>
       <ul className="list-none pl-0 space-y-1">
-        {topCountries.map((country, index) => (
+        {topCountries.slice(0, 8).map((country, index) => (
           <CountryRow
             key={country.code}
             country={country}
             incrementRate={incrementRates[index] || 10000}
-            stormMultiplier={storm ? 10 : 1}
+            stormMultiplier={stormMultiplier}
           />
         ))}
       </ul>
@@ -393,27 +407,247 @@ export function TopCountries() {
 }
 
 export function RegionCount() {
+  const [regionCount, setRegionCount] = useState(19)
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+    const interval = setInterval(() => {
+      // Fluctuate between 18-21
+      setRegionCount(prev => {
+        const change = Math.random() > 0.5 ? 1 : -1
+        const newVal = prev + (Math.random() > 0.7 ? change : 0)
+        return Math.max(18, Math.min(21, newVal))
+      })
+    }, 5000) // Change every 5 seconds
+    
+    return () => clearInterval(interval)
+  }, [])
+  
   return (
     <div className="flex items-center w-full md:w-fit justify-between md:justify-start mt-2">
       <span aria-hidden="true" className="inline-block translate-y-[-2px] translate-x-[2px]">
         <span className="text-[10px]">▲</span>
       </span>
       <div className="text-left">
-        <span className="inline-block my-0 font-medium text-[16px]">&nbsp;19</span>
+        {mounted ? (
+          <motion.span 
+            key={regionCount}
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-block my-0 font-medium text-[16px]"
+          >
+            &nbsp;{regionCount}
+          </motion.span>
+        ) : (
+          <span className="inline-block my-0 font-medium text-[16px]">&nbsp;19</span>
+        )}
         <span className="font-medium text-[16px] text-gray-900 tracking-tight">&nbsp;Global regions</span>
       </div>
     </div>
   )
 }
 
+// Dynamic metrics that update in real-time
+function useDynamicMetrics() {
+  const { stormMultiplier } = useStorm()
+  const [mergeTime, setMergeTime] = useState(4.2)
+  const [peakHour, setPeakHour] = useState(14)
+  const [threatLevel, setThreatLevel] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('LOW')
+  const [threatPercent, setThreatPercent] = useState(15)
+  const [hitRate, setHitRate] = useState(99.7)
+  const [bandwidthSaved, setBandwidthSaved] = useState(847)
+  const [responseTime, setResponseTime] = useState(12)
+  const [blockedBots, setBlockedBots] = useState(['spam-bot-4821', 'fake-contributor'])
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Merge time varies 3-6 hours, faster during storm
+      const baseMergeTime = stormMultiplier > 1 ? 3.2 : 4.5
+      setMergeTime(baseMergeTime + (Math.random() - 0.5) * 1.2)
+      
+      // Peak hour shifts gradually
+      setPeakHour(prev => {
+        const change = Math.random() > 0.7 ? (Math.random() > 0.5 ? 1 : -1) : 0
+        return Math.max(0, Math.min(23, prev + change))
+      })
+      
+      // Threat level based on storm and random spikes
+      const threatValue = (stormMultiplier - 1) * 20 + Math.random() * 40
+      if (threatValue > 50) {
+        setThreatLevel('HIGH')
+        setThreatPercent(65 + Math.random() * 25)
+      } else if (threatValue > 25) {
+        setThreatLevel('MEDIUM')
+        setThreatPercent(35 + Math.random() * 20)
+      } else {
+        setThreatLevel('LOW')
+        setThreatPercent(10 + Math.random() * 15)
+      }
+      
+      // Cache hit rate 98.5-99.9%
+      setHitRate(98.5 + Math.random() * 1.4)
+      
+      // Bandwidth saved increments
+      setBandwidthSaved(prev => prev + Math.floor(Math.random() * 3))
+      
+      // Response time 10-20ms
+      setResponseTime(10 + Math.random() * 10)
+      
+      // Random bot names every few seconds
+      if (Math.random() > 0.7) {
+        const prefixes = ['spam-bot', 'fake-user', 'malware-acc', 'bot-farm', 'phish-actor']
+        const newBot = `${prefixes[Math.floor(Math.random() * prefixes.length)]}-${Math.floor(Math.random() * 9999)}`
+        setBlockedBots([newBot, blockedBots[0]])
+      }
+    }, 2000)
+    
+    return () => clearInterval(interval)
+  }, [stormMultiplier, blockedBots])
+  
+  return { mergeTime, peakHour, threatLevel, threatPercent, hitRate, bandwidthSaved, responseTime, blockedBots }
+}
+
+// Animated Activity Chart - bars that update in real-time
+function ActivityChart() {
+  // Fixed initial values for SSR
+  const initialValues = [3,5,4,6,8,7,9,12,14,11,9,8,6,10,15,18,16,12,9,7,5,4,3,4]
+  const [baseValues, setBaseValues] = useState(initialValues)
+  const [barHeights, setBarHeights] = useState(initialValues)
+  const { stormMultiplier } = useStorm()
+  
+  // Randomize base values only on client mount
+  useEffect(() => {
+    const randomBases = Array.from({ length: 24 }, () => 5 + Math.floor(Math.random() * 14))
+    setBaseValues(randomBases)
+    setBarHeights(randomBases)
+  }, [])
+  
+  // Animate bars every second with smooth random variations
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBarHeights(prev => prev.map((base, i) => {
+        // Random fluctuation ±30% of base value, affected by storm
+        const variation = (Math.random() - 0.5) * 0.6 * baseValues[i]
+        const stormBoost = stormMultiplier > 1 ? (stormMultiplier - 1) * 3 : 0
+        const newVal = baseValues[i] + variation + stormBoost
+        return Math.max(2, Math.min(20, newVal)) // Clamp between 2-20
+      }))
+    }, 800) // Update every 800ms for smooth feel
+    
+    return () => clearInterval(interval)
+  }, [stormMultiplier])
+  
+  return (
+    <div className="mt-3">
+      <div className="text-[10px] font-mono text-gray-900 uppercase mb-1">Activity (24h)</div>
+      <div className="flex gap-0.5 h-28">
+        {barHeights.map((v, i) => (
+          <div key={i} className="flex-1 bg-cyan-500/20 rounded-sm relative overflow-hidden">
+            <motion.div 
+              className="absolute bottom-0 w-full bg-gradient-to-t from-cyan-500 to-cyan-400 rounded-sm"
+              initial={{ height: `${(baseValues[i]/20)*100}%` }}
+              animate={{ height: `${(v/20)*100}%` }}
+              transition={{ 
+                duration: 0.5,
+                ease: "easeInOut"
+              }}
+            />
+            <motion.div 
+              className="absolute bottom-0 w-full bg-gradient-to-t from-white/30 to-transparent rounded-sm"
+              initial={{ height: `${(baseValues[i]/20)*100}%` }}
+              animate={{ 
+                height: `${(v/20)*100}%`,
+                opacity: [0.1, 0.4, 0.1]
+              }}
+              transition={{ 
+                height: { duration: 0.5, ease: "easeInOut" },
+                opacity: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+              }}
+            />
+          </div>
+        ))}
+      </div>
+      {/* Time labels for non-technical users */}
+      <div className="flex justify-between mt-1 text-[9px] font-mono text-gray-900">
+        <span>12AM</span>
+        <span>6AM</span>
+        <span>12PM</span>
+        <span>6PM</span>
+        <span>Now</span>
+      </div>
+    </div>
+  )
+}
+
 export function StatsGrid() {
+  const dynamicMetrics = useDynamicMetrics()
+  
+  // Fixed initial values for SSR hydration
+  const [baseValues, setBaseValues] = useState({
+    totalContributions: 7507223309,
+    activeRepos: 6120247,
+    reviewsSubmitted: 24086391,
+    pullRequests: 7507223309,
+    approvedPRs: 1398205677,
+    underReview: 3171279448,
+    autoMerged: 328783789,
+    botsBlocked: 415683895,
+    humansVerified: 2408122336,
+    cacheHits: 78945678901
+  })
+  
+  const [incrementRates, setIncrementRates] = useState({
+    totalContributions: 29000,
+    activeRepos: 24,
+    reviewsSubmitted: 95,
+    pullRequests: 29000,
+    approvedPRs: 5400,
+    underReview: 12300,
+    autoMerged: 1270,
+    botsBlocked: 1600,
+    humansVerified: 9300,
+    cacheHits: 305000
+  })
+  
+  // Randomize values only on client mount
+  useEffect(() => {
+    setBaseValues({
+      totalContributions: 7500000000 + Math.floor(Math.random() * 20000000),
+      activeRepos: 6100000 + Math.floor(Math.random() * 50000),
+      reviewsSubmitted: 24000000 + Math.floor(Math.random() * 200000),
+      pullRequests: 7500000000 + Math.floor(Math.random() * 20000000),
+      approvedPRs: 1398000000 + Math.floor(Math.random() * 500000),
+      underReview: 3171000000 + Math.floor(Math.random() * 500000),
+      autoMerged: 328700000 + Math.floor(Math.random() * 200000),
+      botsBlocked: 415600000 + Math.floor(Math.random() * 200000),
+      humansVerified: 2408000000 + Math.floor(Math.random() * 500000),
+      cacheHits: 78940000000 + Math.floor(Math.random() * 10000000)
+    })
+    
+    setIncrementRates({
+      totalContributions: Math.floor(29000 * (0.8 + Math.random() * 0.4)),
+      activeRepos: Math.floor(24 * (0.8 + Math.random() * 0.4)),
+      reviewsSubmitted: Math.floor(95 * (0.8 + Math.random() * 0.4)),
+      pullRequests: Math.floor(29000 * (0.8 + Math.random() * 0.4)),
+      approvedPRs: Math.floor(5400 * (0.8 + Math.random() * 0.4)),
+      underReview: Math.floor(12300 * (0.8 + Math.random() * 0.4)),
+      autoMerged: Math.floor(1270 * (0.8 + Math.random() * 0.4)),
+      botsBlocked: Math.floor(1600 * (0.8 + Math.random() * 0.4)),
+      humansVerified: Math.floor(9300 * (0.8 + Math.random() * 0.4)),
+      cacheHits: Math.floor(305000 * (0.8 + Math.random() * 0.4))
+    })
+  }, [])
+  
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
+      {/* Column 1: Live Analysis + 2 smaller cards */}
       <div className="flex flex-col gap-1.5">
+        <LiveAnalysis />
         <StatCard
           title="Total active repositories"
-          baseValue={6120247}
-          incrementRate={24}
+          baseValue={baseValues.activeRepos}
+          incrementRate={incrementRates.activeRepos}
           infoTitle="Total Active Repositories"
           infoContent="Counts repositories with meaningful recent activity (commits, pull requests, issues) in the current simulated global open-source ecosystem.\n\n• Updated live every few seconds\n• Scale inspired by real-world GitHub statistics"
           className="flex-1"
@@ -425,28 +659,55 @@ export function StatsGrid() {
           className="flex-1"
         >
           <ul className="space-y-1 list-none pl-0 mt-2">
-            <MetricRow label="Reviews submitted" baseValue={24086391} incrementRate={95} />
+            <MetricRow label="Reviews submitted" baseValue={baseValues.reviewsSubmitted} incrementRate={incrementRates.reviewsSubmitted} />
           </ul>
         </StatCard>
       </div>
 
+      {/* Column 2: Pull Requests - single tall card */}
       <div className="flex flex-col gap-1.5">
         <StatCard
           title="Pull requests merged"
-          baseValue={7507223309}
-          incrementRate={29000}
+          baseValue={baseValues.pullRequests}
+          incrementRate={incrementRates.pullRequests}
           infoTitle="Pull Requests Merged"
           infoContent="Pull requests successfully merged across all tracked repositories during the contribution storm. Includes approved PRs, auto-merged commits, and community-driven integration.\n\n• Measures velocity of code integration\n• High volume indicates robust ecosystem health"
           className="flex-1"
         >
           <ul className="space-y-1 list-none pl-0 mt-4">
-            <MetricRow label="Approved PRs" baseValue={1398205677} incrementRate={5400} showRate />
-            <MetricRow label="Under review" baseValue={3171279448} incrementRate={12300} showRate />
-            <MetricRow label="Auto-merged" baseValue={328783789} incrementRate={1270} showRate />
+            <MetricRow label="Approved PRs" baseValue={baseValues.approvedPRs} incrementRate={incrementRates.approvedPRs} showRate />
+            <MetricRow label="Under review" baseValue={baseValues.underReview} incrementRate={incrementRates.underReview} showRate />
+            <MetricRow label="Auto-merged" baseValue={baseValues.autoMerged} incrementRate={incrementRates.autoMerged} showRate />
           </ul>
+          <div className="mt-4 pt-3 border-t border-gray-alpha-200">
+            <div className="flex justify-between items-center text-xs font-mono">
+              <span className="text-gray-900">AVG MERGE TIME</span>
+              <motion.span 
+                key={dynamicMetrics.mergeTime.toFixed(1)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-gray-1000"
+              >
+                {dynamicMetrics.mergeTime.toFixed(1)} hours
+              </motion.span>
+            </div>
+            <div className="flex justify-between items-center text-xs font-mono mt-1">
+              <span className="text-gray-900">PEAK HOUR</span>
+              <motion.span 
+                key={dynamicMetrics.peakHour}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-cyan-400"
+              >
+                {String(dynamicMetrics.peakHour).padStart(2, '0')}:00 UTC
+              </motion.span>
+            </div>
+            <ActivityChart />
+          </div>
         </StatCard>
       </div>
 
+      {/* Column 3: Bot + Cache - two cards */}
       <div className="flex flex-col gap-1.5">
         <StatCard
           title="Bot & spam detections"
@@ -455,19 +716,91 @@ export function StatsGrid() {
           className="flex-1"
         >
           <ul className="space-y-1 list-none pl-0 mt-2">
-            <MetricRow label="Bots blocked" baseValue={415683895} incrementRate={1600} />
-            <MetricRow label="Humans verified" baseValue={2408122336} incrementRate={9300} />
+            <MetricRow label="Bots blocked" baseValue={baseValues.botsBlocked} incrementRate={incrementRates.botsBlocked} />
+            <MetricRow label="Humans verified" baseValue={baseValues.humansVerified} incrementRate={incrementRates.humansVerified} />
           </ul>
+          <div className="mt-3 pt-3 border-t border-gray-alpha-200">
+            <div className="flex justify-between items-center text-xs font-mono mb-2">
+              <span className="text-gray-900">THREAT LEVEL</span>
+              <motion.span 
+                key={dynamicMetrics.threatLevel}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className={`font-medium ${
+                  dynamicMetrics.threatLevel === 'HIGH' ? 'text-red-400' :
+                  dynamicMetrics.threatLevel === 'MEDIUM' ? 'text-yellow-400' :
+                  'text-green-400'
+                }`}
+              >
+                {dynamicMetrics.threatLevel}
+              </motion.span>
+            </div>
+            <div className="h-1.5 bg-gray-alpha-200 rounded-full overflow-hidden">
+              <motion.div 
+                className={`h-full rounded-full ${
+                  dynamicMetrics.threatLevel === 'HIGH' ? 'bg-gradient-to-r from-red-500 to-red-400' :
+                  dynamicMetrics.threatLevel === 'MEDIUM' ? 'bg-gradient-to-r from-yellow-500 to-yellow-400' :
+                  'bg-gradient-to-r from-green-500 to-green-400'
+                }`}
+                animate={{ width: `${dynamicMetrics.threatPercent}%` }}
+                transition={{ duration: 0.5 }}
+              />
+            </div>
+            <div className="mt-3 text-[10px] font-mono text-gray-900 uppercase">Recent Blocks</div>
+            <div className="mt-1 space-y-1">
+              <AnimatePresence mode="popLayout">
+                {dynamicMetrics.blockedBots.map((bot, i) => (
+                  <motion.div 
+                    key={bot}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    className="text-[10px] font-mono text-gray-1000 truncate"
+                  >
+                    {bot} <span className="text-red-400">blocked</span>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </div>
         </StatCard>
         <StatCard
           title="Cache hits"
-          baseValue={78945678901}
-          incrementRate={305000}
+          baseValue={baseValues.cacheHits}
+          incrementRate={incrementRates.cacheHits}
           infoTitle="Cache Hits"
           infoContent="Documentation and assets served from cache to contributors without fetching from origin servers. Dramatically improves download speed and reduces infrastructure load.\n\n• Reduced latency globally\n• Cost-effective content delivery"
           className="flex-1"
         >
           <p className="text-gray-900 text-sm font-mono mt-1">Docs / assets served</p>
+          <div className="mt-3 pt-3 border-t border-gray-alpha-200">
+            <div className="flex justify-between items-center text-xs font-mono">
+              <span className="text-gray-900">HIT RATE</span>
+              <motion.span 
+                key={dynamicMetrics.hitRate.toFixed(1)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-green-400 font-medium"
+              >
+                {dynamicMetrics.hitRate.toFixed(1)}%
+              </motion.span>
+            </div>
+            <div className="flex justify-between items-center text-xs font-mono mt-1">
+              <span className="text-gray-900">BANDWIDTH SAVED</span>
+              <span className="text-gray-1000">{dynamicMetrics.bandwidthSaved.toLocaleString()} TB</span>
+            </div>
+            <div className="flex justify-between items-center text-xs font-mono mt-1">
+              <span className="text-gray-900">AVG RESPONSE</span>
+              <motion.span 
+                key={dynamicMetrics.responseTime.toFixed(0)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-cyan-400"
+              >
+                {dynamicMetrics.responseTime.toFixed(0)}ms
+              </motion.span>
+            </div>
+          </div>
         </StatCard>
       </div>
     </div>

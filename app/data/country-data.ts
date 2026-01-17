@@ -17,6 +17,7 @@ export const topCountries = [
   { code: "BR", name: "Brazil", requests: 3932756153, color: "#FF0000" },
   { code: "SG", name: "Singapore", requests: 3806778302, color: "#f59e0b" },
   { code: "JP", name: "Japan", requests: 3690185948, color: "#dc143c" },
+  { code: "FR", name: "France", requests: 3511746816, color: "#1d4ed8" },
 ];
 
 export const countryRequests: Record<string, CountryData> = {

@@ -1,6 +1,6 @@
 {
-  "name": "black-friday-map",
-  "version": "0.1.0",
+  "name": "nexus-oss-observatory",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "build": "next build",
@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
+    "@radix-ui/react-popover": "^1.1.15",
     "@types/topojson-client": "^3.1.5",
+    "@vnedyalk0v/react19-simple-maps": "^1.2.1",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "d3-geo": "^3.1.1",
@@ -21,7 +23,7 @@
     "prop-types": "latest",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "react-simple-maps": "^3.0.0",
+    "sentiment": "^5.0.2",
     "tailwind-merge": "3.4.0",
     "tailwindcss-animate": "1.0.7",
     "topojson-client": "^3.1.0"
@@ -32,6 +34,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sentiment": "^5.0.4",
     "eslint": "^9",
     "eslint-config-next": "16.0.6",
     "postcss": "8.5.6",

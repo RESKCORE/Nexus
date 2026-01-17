@@ -8,7 +8,7 @@ export default function Home() {
         <div className="flex flex-col min-[961px]:hidden">
           <header className="flex flex-col items-start font-mono text-sm uppercase gap-2 mb-6">
             <p className="text-gray-1000 font-mono my-0 whitespace-nowrap">
-              Contribution Storm{" "}
+              Nexus Observatory{" "}
               <span className="block font-mono text-gray-900">
                 Global open source activity • Live simulation • January 2026
               </span>
@@ -31,7 +31,7 @@ export default function Home() {
         <div className="relative hidden min-[961px]:flex flex-row max-lg:items-end lg:items-center lg:justify-between">
           <header className="flex flex-col items-start font-mono text-sm xl:text-base uppercase gap-2 max-lg:mb-8 mb-auto">
             <p className="text-gray-1000 font-mono my-0 whitespace-nowrap">
-              Contribution Storm{" "}
+              Nexus Observatory{" "}
               <span className="block font-mono text-gray-900">
                 Global open source activity • Live simulation • January 2026
               </span>

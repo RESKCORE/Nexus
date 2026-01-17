@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, memo, useState } from "react";
-import { ComposableMap, Geographies, Marker } from "react-simple-maps";
+import { ComposableMap, Geographies, Marker } from "@vnedyalk0v/react19-simple-maps";
 import { motion, AnimatePresence } from "framer-motion";
 import { geoMercator } from "d3-geo";
 import dottedMapData from "../data/dotted-map-data.json";
 import { regionMarkers, topCountries, countryRequests } from "../data/country-data";
+import { useStorm } from "../context/StormContext";
 
 const countryColors: Record<string, string> = {
   US: "#1e40af",
@@ -46,8 +47,19 @@ const countryColors: Record<string, string> = {
   AE: "#f59e0b",
 };
 
-const getCountryColor = (iso2: string): string => {
-  return countryColors[iso2] || "#666666";
+const getCountryColor = (iso2: string, isStormActive = false): string => {
+  const baseColor = countryColors[iso2] || "#666666";
+  
+  // During storm, intensify red tones for high-activity countries
+  if (isStormActive) {
+    const data = countryRequests[iso2];
+    if (data && data.value > 3000000000) {
+      // Top countries get redder glow during storm
+      return data.value > 10000000000 ? "#dc2626" : "#ef4444";
+    }
+  }
+  
+  return baseColor;
 };
 
 const top10Countries = new Set(
@@ -80,33 +92,35 @@ const AnimatedPixel = memo(
     color,
     canPulse,
     cityDistanceRank,
+    isStormActive,
   }: {
     x: number;
     y: number;
     color: string;
     canPulse: boolean;
     cityDistanceRank: number;
+    isStormActive: boolean;
   }) => {
     const delay = useMemo(() => cityDistanceRank * 0.1, [cityDistanceRank]);
 
     const animate = canPulse
       ? {
-          scale: [1, 1.8, 1],
-          opacity: [0.8, 1, 0.8],
+          scale: isStormActive ? [1, 2.2, 1] : [1, 1.8, 1],
+          opacity: isStormActive ? [0.9, 1, 0.9] : [0.8, 1, 0.8],
         }
       : { scale: 1, opacity: 1 };
 
     const transition = canPulse
       ? {
           opacity: {
-            duration: 1,
+            duration: isStormActive ? 0.8 : 1,
             repeat: Infinity,
             ease: "easeInOut" as const,
             delay,
             repeatDelay: delay,
           },
           scale: {
-            duration: 1.5,
+            duration: isStormActive ? 1 : 1.5,
             repeat: Infinity,
             ease: "easeInOut" as const,
             delay,
@@ -126,6 +140,7 @@ const AnimatedPixel = memo(
         transition={transition}
         style={{
           willChange: canPulse && cityDistanceRank < 10 ? "transform, opacity" : undefined,
+          filter: isStormActive && canPulse ? "drop-shadow(0 0 3px currentColor)" : undefined,
         }}
       />
     );
@@ -172,6 +187,7 @@ interface DottedMapProps {
 
 export default function DottedMap({ width = 1000, height = 560 }: DottedMapProps) {
   const [hoveredMarker, setHoveredMarker] = useState<(typeof regionMarkers)[0] | null>(null);
+  const { isStormActive } = useStorm();
 
   const handleMarkerHover = (marker: (typeof regionMarkers)[0] | null) => {
     setHoveredMarker(marker);
@@ -201,7 +217,7 @@ export default function DottedMap({ width = 1000, height = 560 }: DottedMapProps
     Object.entries(dottedMapData as Record<string, Array<{ lon: number; lat: number; cityDistanceRank: number }>>).forEach(
       ([countryCode, cities]) => {
         const dotsToShow = getDotsToShow(countryCode);
-        const color = getCountryColor(countryCode);
+        const color = getCountryColor(countryCode, isStormActive);
         const isTop10 = top10Countries.has(countryCode);
 
         cities.forEach((city) => {
@@ -231,7 +247,7 @@ export default function DottedMap({ width = 1000, height = 560 }: DottedMapProps
     );
 
     return { staticPixels: staticArr, animatedPixels: animatedArr };
-  }, [projection, width, height]);
+  }, [projection, width, height, isStormActive]);
 
   const markerDelays = useMemo(
     () => regionMarkers.map((_, i) => (i * 0.05) % 1),
@@ -259,6 +275,7 @@ export default function DottedMap({ width = 1000, height = 560 }: DottedMapProps
               color={p.color}
               canPulse={p.canPulse}
               cityDistanceRank={p.cityDistanceRank}
+              isStormActive={isStormActive}
             />
           ))}
         </g>

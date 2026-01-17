@@ -25,3 +25,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# datasets (too large for git/vercel)
+*.csv
+*.json.gz
+/data/
+/datasets/
