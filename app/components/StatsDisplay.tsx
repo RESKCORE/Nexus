@@ -9,6 +9,8 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Info } from "lucide-react"
 import { useStorm } from "../context/StormContext"
 import { LiveAnalysis } from "./LiveAnalysis"
+import CardWrapper from './CardWrapper'
+import { useSupabaseData } from "@/lib/hooks/useSupabaseData"
 
 const weighted = [
   { code: "US", weight: 40 },
@@ -108,7 +110,7 @@ function PixelGridTransition({
     const indices = pixels.map((_, i) => i)
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
-      ;[indices[i], indices[j]] = [indices[j], indices[i]]
+        ;[indices[i], indices[j]] = [indices[j], indices[i]]
     }
     setShuffledOrder(indices)
 
@@ -324,7 +326,23 @@ function MetricRow({
 
 export function TotalContributions() {
   const { isStormActive, stormMultiplier, toggleStorm } = useStorm()
-  const { value, rate } = useAnimatedNumber(115833330378, 480710, stormMultiplier)
+  const { totalContributions, overview, loading } = useSupabaseData()
+
+  // Use real total from database, with fallback for loading state
+  const realTotal = useMemo(() => {
+    if (loading || !overview) return 115833330378 // Fallback while loading
+    // Use the calculated total from country stats, or compute from overview
+    return totalContributions > 0 ? totalContributions : (overview.totalStars + overview.totalCommits)
+  }, [totalContributions, overview, loading])
+
+  // Calculate dynamic increment rate based on database size
+  const incrementRate = useMemo(() => {
+    // Base rate scales with total size (roughly 0.4% of total per second as simulation)
+    const baseRate = Math.max(100000, Math.floor(realTotal * 0.000004))
+    return baseRate
+  }, [realTotal])
+
+  const { value, rate } = useAnimatedNumber(realTotal, incrementRate, stormMultiplier)
 
   return (
     <div className="space-y-2 relative">
@@ -385,7 +403,42 @@ function CountryRow({
 
 export function TopCountries() {
   const { stormMultiplier } = useStorm()
-  const incrementRates = [160000, 24000, 19000, 17000, 15000, 15000, 14000, 13000]
+  const { topCountries: realTopCountries, loading } = useSupabaseData()
+
+  // Map real country data to match the expected format
+  const countriesWithColors = useMemo(() => {
+    // Country code to color mapping
+    const colorMap: Record<string, string> = {
+      US: "#1e40af", DE: "#FFCE00", GB: "#2563eb", IN: "#f59e0b",
+      BR: "#FF0000", SG: "#f59e0b", JP: "#dc143c", FR: "#1d4ed8",
+      CA: "#b91c1c", SE: "#2563eb", AU: "#3b82f6", KR: "#3b82f6",
+      NL: "#ea580c", CN: "#991b1b", ES: "#b91c1c", IT: "#15803d",
+    }
+
+    return realTopCountries.map(country => ({
+      code: country.code,
+      name: country.code, // Could be expanded with full names
+      requests: country.totalContributions,
+      color: colorMap[country.code] || "#3b82f6",
+    }))
+  }, [realTopCountries])
+
+  // Calculate increment rates based on actual contribution values
+  const calculateIncrementRate = (totalContributions: number) => {
+    // Roughly 0.4% of total per second as base rate
+    return Math.max(1000, Math.floor(totalContributions * 0.000004))
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        <h2 className="my-0 font-mono font-medium text-sm tracking-tight uppercase text-gray-900">
+          Top countries by contributions
+        </h2>
+        <div className="text-gray-900 text-sm font-mono animate-pulse">Loading...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-2">
@@ -393,11 +446,11 @@ export function TopCountries() {
         Top countries by contributions
       </h2>
       <ul className="list-none pl-0 space-y-1">
-        {topCountries.slice(0, 8).map((country, index) => (
+        {countriesWithColors.slice(0, 8).map((country) => (
           <CountryRow
             key={country.code}
             country={country}
-            incrementRate={incrementRates[index] || 10000}
+            incrementRate={calculateIncrementRate(country.requests)}
             stormMultiplier={stormMultiplier}
           />
         ))}
@@ -407,23 +460,33 @@ export function TopCountries() {
 }
 
 export function RegionCount() {
-  const [regionCount, setRegionCount] = useState(19)
+  const { activeRegions, loading } = useSupabaseData()
+  const [regionCount, setRegionCount] = useState(activeRegions || 19)
   const [mounted, setMounted] = useState(false)
-  
+
   useEffect(() => {
     setMounted(true)
     const interval = setInterval(() => {
       // Fluctuate between 18-21
       setRegionCount(prev => {
+        const baseValue = activeRegions || 19
         const change = Math.random() > 0.5 ? 1 : -1
         const newVal = prev + (Math.random() > 0.7 ? change : 0)
-        return Math.max(18, Math.min(21, newVal))
+        return Math.max(baseValue - 2, Math.min(baseValue + 2, newVal))
       })
     }, 5000) // Change every 5 seconds
-    
+
     return () => clearInterval(interval)
-  }, [])
-  
+  }, [activeRegions])
+
+  // Sync display when real data arrives
+  useEffect(() => {
+    if (activeRegions > 0) {
+      setRegionCount(activeRegions)
+    }
+  }, [activeRegions])
+
+
   return (
     <div className="flex items-center w-full md:w-fit justify-between md:justify-start mt-2">
       <span aria-hidden="true" className="inline-block translate-y-[-2px] translate-x-[2px]">
@@ -431,7 +494,7 @@ export function RegionCount() {
       </span>
       <div className="text-left">
         {mounted ? (
-          <motion.span 
+          <motion.span
             key={regionCount}
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
@@ -440,7 +503,7 @@ export function RegionCount() {
             &nbsp;{regionCount}
           </motion.span>
         ) : (
-          <span className="inline-block my-0 font-medium text-[16px]">&nbsp;19</span>
+          <span className="inline-block my-0 font-medium text-[16px]">&nbsp;{activeRegions || 19}</span>
         )}
         <span className="font-medium text-[16px] text-gray-900 tracking-tight">&nbsp;Global regions</span>
       </div>
@@ -459,19 +522,19 @@ function useDynamicMetrics() {
   const [bandwidthSaved, setBandwidthSaved] = useState(847)
   const [responseTime, setResponseTime] = useState(12)
   const [blockedBots, setBlockedBots] = useState(['spam-bot-4821', 'fake-contributor'])
-  
+
   useEffect(() => {
     const interval = setInterval(() => {
       // Merge time varies 3-6 hours, faster during storm
       const baseMergeTime = stormMultiplier > 1 ? 3.2 : 4.5
       setMergeTime(baseMergeTime + (Math.random() - 0.5) * 1.2)
-      
+
       // Peak hour shifts gradually
       setPeakHour(prev => {
         const change = Math.random() > 0.7 ? (Math.random() > 0.5 ? 1 : -1) : 0
         return Math.max(0, Math.min(23, prev + change))
       })
-      
+
       // Threat level based on storm and random spikes
       const threatValue = (stormMultiplier - 1) * 20 + Math.random() * 40
       if (threatValue > 50) {
@@ -484,16 +547,16 @@ function useDynamicMetrics() {
         setThreatLevel('LOW')
         setThreatPercent(10 + Math.random() * 15)
       }
-      
+
       // Cache hit rate 98.5-99.9%
       setHitRate(98.5 + Math.random() * 1.4)
-      
+
       // Bandwidth saved increments
       setBandwidthSaved(prev => prev + Math.floor(Math.random() * 3))
-      
+
       // Response time 10-20ms
       setResponseTime(10 + Math.random() * 10)
-      
+
       // Random bot names every few seconds
       if (Math.random() > 0.7) {
         const prefixes = ['spam-bot', 'fake-user', 'malware-acc', 'bot-farm', 'phish-actor']
@@ -501,28 +564,28 @@ function useDynamicMetrics() {
         setBlockedBots([newBot, blockedBots[0]])
       }
     }, 2000)
-    
+
     return () => clearInterval(interval)
   }, [stormMultiplier, blockedBots])
-  
+
   return { mergeTime, peakHour, threatLevel, threatPercent, hitRate, bandwidthSaved, responseTime, blockedBots }
 }
 
 // Animated Activity Chart - bars that update in real-time
 function ActivityChart() {
   // Fixed initial values for SSR
-  const initialValues = [3,5,4,6,8,7,9,12,14,11,9,8,6,10,15,18,16,12,9,7,5,4,3,4]
+  const initialValues = [3, 5, 4, 6, 8, 7, 9, 12, 14, 11, 9, 8, 6, 10, 15, 18, 16, 12, 9, 7, 5, 4, 3, 4]
   const [baseValues, setBaseValues] = useState(initialValues)
   const [barHeights, setBarHeights] = useState(initialValues)
   const { stormMultiplier } = useStorm()
-  
+
   // Randomize base values only on client mount
   useEffect(() => {
     const randomBases = Array.from({ length: 24 }, () => 5 + Math.floor(Math.random() * 14))
     setBaseValues(randomBases)
     setBarHeights(randomBases)
   }, [])
-  
+
   // Animate bars every second with smooth random variations
   useEffect(() => {
     const interval = setInterval(() => {
@@ -534,33 +597,33 @@ function ActivityChart() {
         return Math.max(2, Math.min(20, newVal)) // Clamp between 2-20
       }))
     }, 800) // Update every 800ms for smooth feel
-    
+
     return () => clearInterval(interval)
   }, [stormMultiplier])
-  
+
   return (
     <div className="mt-3">
       <div className="text-[10px] font-mono text-gray-900 uppercase mb-1">Activity (24h)</div>
       <div className="flex gap-0.5 h-28">
         {barHeights.map((v, i) => (
           <div key={i} className="flex-1 bg-cyan-500/20 rounded-sm relative overflow-hidden">
-            <motion.div 
+            <motion.div
               className="absolute bottom-0 w-full bg-gradient-to-t from-cyan-500 to-cyan-400 rounded-sm"
-              initial={{ height: `${(baseValues[i]/20)*100}%` }}
-              animate={{ height: `${(v/20)*100}%` }}
-              transition={{ 
+              initial={{ height: `${(baseValues[i] / 20) * 100}%` }}
+              animate={{ height: `${(v / 20) * 100}%` }}
+              transition={{
                 duration: 0.5,
                 ease: "easeInOut"
               }}
             />
-            <motion.div 
+            <motion.div
               className="absolute bottom-0 w-full bg-gradient-to-t from-white/30 to-transparent rounded-sm"
-              initial={{ height: `${(baseValues[i]/20)*100}%` }}
-              animate={{ 
-                height: `${(v/20)*100}%`,
+              initial={{ height: `${(baseValues[i] / 20) * 100}%` }}
+              animate={{
+                height: `${(v / 20) * 100}%`,
                 opacity: [0.1, 0.4, 0.1]
               }}
-              transition={{ 
+              transition={{
                 height: { duration: 0.5, ease: "easeInOut" },
                 opacity: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
               }}
@@ -581,228 +644,270 @@ function ActivityChart() {
 }
 
 export function StatsGrid() {
-  const dynamicMetrics = useDynamicMetrics()
-  
-  // Fixed initial values for SSR hydration
-  const [baseValues, setBaseValues] = useState({
-    totalContributions: 7507223309,
-    activeRepos: 6120247,
-    reviewsSubmitted: 24086391,
-    pullRequests: 7507223309,
-    approvedPRs: 1398205677,
-    underReview: 3171279448,
-    autoMerged: 328783789,
-    botsBlocked: 415683895,
-    humansVerified: 2408122336,
-    cacheHits: 78945678901
-  })
-  
-  const [incrementRates, setIncrementRates] = useState({
-    totalContributions: 29000,
-    activeRepos: 24,
-    reviewsSubmitted: 95,
-    pullRequests: 29000,
-    approvedPRs: 5400,
-    underReview: 12300,
-    autoMerged: 1270,
-    botsBlocked: 1600,
-    humansVerified: 9300,
-    cacheHits: 305000
-  })
-  
-  // Randomize values only on client mount
-  useEffect(() => {
-    setBaseValues({
-      totalContributions: 7500000000 + Math.floor(Math.random() * 20000000),
-      activeRepos: 6100000 + Math.floor(Math.random() * 50000),
-      reviewsSubmitted: 24000000 + Math.floor(Math.random() * 200000),
-      pullRequests: 7500000000 + Math.floor(Math.random() * 20000000),
-      approvedPRs: 1398000000 + Math.floor(Math.random() * 500000),
-      underReview: 3171000000 + Math.floor(Math.random() * 500000),
-      autoMerged: 328700000 + Math.floor(Math.random() * 200000),
-      botsBlocked: 415600000 + Math.floor(Math.random() * 200000),
-      humansVerified: 2408000000 + Math.floor(Math.random() * 500000),
-      cacheHits: 78940000000 + Math.floor(Math.random() * 10000000)
-    })
-    
-    setIncrementRates({
-      totalContributions: Math.floor(29000 * (0.8 + Math.random() * 0.4)),
-      activeRepos: Math.floor(24 * (0.8 + Math.random() * 0.4)),
-      reviewsSubmitted: Math.floor(95 * (0.8 + Math.random() * 0.4)),
-      pullRequests: Math.floor(29000 * (0.8 + Math.random() * 0.4)),
-      approvedPRs: Math.floor(5400 * (0.8 + Math.random() * 0.4)),
-      underReview: Math.floor(12300 * (0.8 + Math.random() * 0.4)),
-      autoMerged: Math.floor(1270 * (0.8 + Math.random() * 0.4)),
-      botsBlocked: Math.floor(1600 * (0.8 + Math.random() * 0.4)),
-      humansVerified: Math.floor(9300 * (0.8 + Math.random() * 0.4)),
-      cacheHits: Math.floor(305000 * (0.8 + Math.random() * 0.4))
-    })
-  }, [])
-  
+  const { overview, topLanguages, allLanguages, topRepos, recentTrends, loading, lastUpdated } = useSupabaseData()
+
+  // Compute real stats from database
+  const totalForks = topRepos.reduce((sum, r) => sum + (r.forks_count || 0), 0)
+  const totalPRs = topRepos.reduce((sum, r) => sum + (r.pull_requests || 0), 0)
+  const totalContributors = topRepos.reduce((sum, r) => sum + (r.contributors || 0), 0)
+
+  // Language distribution sorted by stars
+  const languagesByStars = [...(allLanguages || [])].sort((a, b) => (b.total_stars || 0) - (a.total_stars || 0))
+  const languagesByRepos = [...(allLanguages || [])].sort((a, b) => b.repo_count - a.repo_count)
+
+  // License breakdown from repos  
+  const licenseStats = topRepos.reduce((acc, r) => {
+    const license = r.licence || 'Unknown'
+    acc[license] = (acc[license] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  const topLicenses = Object.entries(licenseStats)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 8)
+    .map(([name, count]) => ({ name, count, percentage: Math.round((count / topRepos.length) * 100) }))
+
+  // Format large numbers
+  const formatNum = (n: number) => {
+    if (n >= 1000000000) return `${(n / 1000000000).toFixed(1)}B`
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
+    return n.toLocaleString()
+  }
+
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
-      {/* Column 1: Live Analysis + 2 smaller cards */}
-      <div className="flex flex-col gap-1.5">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5 h-auto lg:h-[600px]">
+      {/* 
+        Grid Layout Strategy:
+        We define a strict 4-column, 2-row grid for desktop (lg).
+        Height is constrained to 600px total on desktop to match the previous design intent but with strict alignment.
+        On mobile/tablet, it flows naturally.
+      */}
+
+      {/* 1. Database Overview (Col 1, Row 1) */}
+      <CardWrapper title={"Database Overview"} maxHeight="max-h-[400px]" className="h-full">
+        {loading ? (
+          <div className="text-gray-400 text-sm font-mono animate-pulse px-2 py-4">Loading...</div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-1000 text-sm font-mono">REPOSITORIES</span>
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-cyan-400 font-mono text-xl font-medium"
+              >
+                {formatNum(overview?.totalRepos || 0)}
+              </motion.span>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-gray-1000 text-sm font-mono">TOTAL STARS</span>
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-yellow-400 font-mono text-xl font-medium"
+              >
+                {formatNum(overview?.totalStars || 0)}
+              </motion.span>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-gray-1000 text-sm font-mono">TOTAL COMMITS</span>
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-green-400 font-mono text-xl font-medium"
+              >
+                {formatNum(overview?.totalCommits || 0)}
+              </motion.span>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-gray-1000 text-sm font-mono">LANGUAGES</span>
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-purple-400 font-mono text-xl font-medium"
+              >
+                {overview?.uniqueLanguages || 0}
+              </motion.span>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-gray-1000 text-sm font-mono">TOTAL FORKS</span>
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-orange-400 font-mono text-xl font-medium"
+              >
+                {formatNum(totalForks)}
+              </motion.span>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-gray-1000 text-sm font-mono">PULL REQUESTS</span>
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-pink-400 font-mono text-xl font-medium"
+              >
+                {formatNum(totalPRs)}
+              </motion.span>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-gray-1000 text-sm font-mono">CONTRIBUTORS</span>
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-blue-400 font-mono text-xl font-medium"
+              >
+                {formatNum(totalContributors)}
+              </motion.span>
+            </div>
+          </div>
+        )}
+        {lastUpdated && (
+          <div className="text-[10px] font-mono text-gray-500 text-center">Last updated: {lastUpdated.toLocaleTimeString()}</div>
+        )}
+      </CardWrapper>
+
+      {/* 2. Top Repositories (Col 2, Row 1 & 2 - Spans 2 Rows) */}
+      <CardWrapper title={"Top Repositories"} maxHeight="max-h-[600px]" className="lg:row-span-2 h-full">
+        {loading ? (
+          <div className="text-gray-400 text-sm font-mono animate-pulse px-2 py-4">Loading...</div>
+        ) : (
+          <div className="space-y-2">
+            {topRepos.slice(0, 20).map((repo, i) => (
+              <motion.div
+                key={repo.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.03 }}
+                className="list-item repo-item flex flex-col p-3 bg-gray-900/40 rounded border border-gray-alpha-200 hover:border-cyan-500/30 transition-all duration-150"
+              >
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-gray-1000 font-mono text-sm truncate max-w-[160px]">
+                    <span className="text-gray-500 text-xs mr-2">{i + 1}.</span> {repo.name}
+                  </span>
+                  <span className="text-yellow-400 font-mono text-sm whitespace-nowrap ml-2 flex items-center gap-1">
+                    <span className="font-mono">{formatNum(repo.stars_count)}</span>
+                    <span aria-hidden className="star-icon">⭐</span>
+                  </span>
+                </div>
+                <div className="flex gap-3 mt-2 text-[11px] font-mono text-gray-400">
+                  {repo.primary_language && (
+                    <span className="text-purple-400">{repo.primary_language}</span>
+                  )}
+                  <span className="text-gray-500">🍴 <span className="font-mono">{formatNum(repo.forks_count)}</span></span>
+                  {repo.commit_count > 0 && <span className="text-gray-500">📝 <span className="font-mono">{formatNum(repo.commit_count)}</span></span>}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </CardWrapper>
+
+      {/* 3. Languages by Stars (Col 3, Row 1) */}
+      <CardWrapper title={"Languages by Stars"} maxHeight="max-h-[400px]" className="h-full">
+        {loading ? (
+          <div className="text-gray-400 text-sm font-mono animate-pulse px-2 py-4">Loading...</div>
+        ) : (
+          <div className="space-y-1.5">
+            {languagesByStars.slice(0, 15).map((lang, i) => (
+              <div key={i} className="list-item lang-item flex justify-between items-center text-xs font-mono p-2 rounded">
+                <span className="text-gray-1000 truncate">
+                  <span className="text-gray-500 mr-2">{i + 1}.</span> {lang.primary_language}
+                </span>
+                <span className="text-yellow-400 font-mono">{formatNum(lang.total_stars || 0)} <span aria-hidden className="star-icon">⭐</span></span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardWrapper>
+
+      {/* 4. License Distribution (Col 4, Row 1) */}
+      <CardWrapper title={"License Distribution"} maxHeight="max-h-[400px]" className="h-full">
+        {loading ? (
+          <div className="text-gray-400 text-sm font-mono animate-pulse px-2 py-4">Loading...</div>
+        ) : (
+          <div className="space-y-2">
+            {topLicenses.map((license, i) => (
+              <div key={i} className="license-item list-item space-y-1 p-2 rounded">
+                <div className="flex justify-between items-center text-xs font-mono">
+                  <span className="text-gray-1000 truncate max-w-[120px]">{license.name}</span>
+                  <span className="text-cyan-400 font-mono">{license.count} (<span className="text-gray-400">{license.percentage}%</span>)</span>
+                </div>
+                <div className="h-1 bg-gray-alpha-200 rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${license.percentage}%` }}
+                    transition={{ duration: 0.5, delay: i * 0.05 }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardWrapper>
+
+      {/* 5. Live Analysis (Col 1, Row 2) 
+          Note: In CSS Grid, order is strictly by DOM order unless customized with grid-row/col.
+          We want this in the first column, second row.
+      */}
+      <div className="rounded-md overflow-hidden h-full">
+        {/* LiveAnalysis contains its own card-root, so we just wrap it to ensure it fills the grid cell */}
         <LiveAnalysis />
-        <StatCard
-          title="Total active repositories"
-          baseValue={baseValues.activeRepos}
-          incrementRate={incrementRates.activeRepos}
-          infoTitle="Total Active Repositories"
-          infoContent="Counts repositories with meaningful recent activity (commits, pull requests, issues) in the current simulated global open-source ecosystem.\n\n• Updated live every few seconds\n• Scale inspired by real-world GitHub statistics"
-          className="flex-1"
-        />
-        <StatCard
-          title="Code Review Activity"
-          infoTitle="Code Review Activity"
-          infoContent="Tracks the total number of code review submissions (PR reviews, approvals, change requests, comments) across all active repositories in real-time simulation.\n\n• Includes all review-related events\n• Peaks during high-contribution periods (releases, hackathons)\n• Helps measure maintainer engagement and code quality throughput"
-          className="flex-1"
-        >
-          <ul className="space-y-1 list-none pl-0 mt-2">
-            <MetricRow label="Reviews submitted" baseValue={baseValues.reviewsSubmitted} incrementRate={incrementRates.reviewsSubmitted} />
-          </ul>
-        </StatCard>
       </div>
 
-      {/* Column 2: Pull Requests - single tall card */}
-      <div className="flex flex-col gap-1.5">
-        <StatCard
-          title="Pull requests merged"
-          baseValue={baseValues.pullRequests}
-          incrementRate={incrementRates.pullRequests}
-          infoTitle="Pull Requests Merged"
-          infoContent="Pull requests successfully merged across all tracked repositories during the contribution storm. Includes approved PRs, auto-merged commits, and community-driven integration.\n\n• Measures velocity of code integration\n• High volume indicates robust ecosystem health"
-          className="flex-1"
-        >
-          <ul className="space-y-1 list-none pl-0 mt-4">
-            <MetricRow label="Approved PRs" baseValue={baseValues.approvedPRs} incrementRate={incrementRates.approvedPRs} showRate />
-            <MetricRow label="Under review" baseValue={baseValues.underReview} incrementRate={incrementRates.underReview} showRate />
-            <MetricRow label="Auto-merged" baseValue={baseValues.autoMerged} incrementRate={incrementRates.autoMerged} showRate />
-          </ul>
-          <div className="mt-4 pt-3 border-t border-gray-alpha-200">
-            <div className="flex justify-between items-center text-xs font-mono">
-              <span className="text-gray-900">AVG MERGE TIME</span>
-              <motion.span 
-                key={dynamicMetrics.mergeTime.toFixed(1)}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-gray-1000"
-              >
-                {dynamicMetrics.mergeTime.toFixed(1)} hours
-              </motion.span>
-            </div>
-            <div className="flex justify-between items-center text-xs font-mono mt-1">
-              <span className="text-gray-900">PEAK HOUR</span>
-              <motion.span 
-                key={dynamicMetrics.peakHour}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-cyan-400"
-              >
-                {String(dynamicMetrics.peakHour).padStart(2, '0')}:00 UTC
-              </motion.span>
-            </div>
-            <ActivityChart />
+      {/* 6. Languages by Repos (Col 3, Row 2) */}
+      <CardWrapper title={"Languages by Repos"} maxHeight="max-h-[400px]" className="h-full">
+        {loading ? (
+          <div className="text-gray-400 text-sm font-mono animate-pulse px-2 py-4">Loading...</div>
+        ) : (
+          <div className="space-y-1.5">
+            {languagesByRepos.slice(0, 15).map((lang, i) => (
+              <div key={i} className="list-item lang-item flex justify-between items-center text-xs font-mono p-2 rounded">
+                <span className="text-gray-1000 truncate">
+                  <span className="text-gray-500 mr-2">{i + 1}.</span> {lang.primary_language}
+                </span>
+                <div className="flex gap-2">
+                  <span className="text-cyan-400 font-mono">{lang.repo_count} repos</span>
+                  <span className="text-gray-500">({formatNum(lang.avg_stars)} avg)</span>
+                </div>
+              </div>
+            ))}
           </div>
-        </StatCard>
-      </div>
+        )}
+      </CardWrapper>
 
-      {/* Column 3: Bot + Cache - two cards */}
-      <div className="flex flex-col gap-1.5">
-        <StatCard
-          title="Bot & spam detections"
-          infoTitle="Bot & Spam Detections"
-          infoContent="Automated systems identifying and blocking malicious activity (spam commits, fake accounts, malware) while allowing legitimate contributors through. Protects repository integrity.\n\n• Machine-learning powered filtering\n• Balances security with contributor accessibility"
-          className="flex-1"
-        >
-          <ul className="space-y-1 list-none pl-0 mt-2">
-            <MetricRow label="Bots blocked" baseValue={baseValues.botsBlocked} incrementRate={incrementRates.botsBlocked} />
-            <MetricRow label="Humans verified" baseValue={baseValues.humansVerified} incrementRate={incrementRates.humansVerified} />
-          </ul>
-          <div className="mt-3 pt-3 border-t border-gray-alpha-200">
-            <div className="flex justify-between items-center text-xs font-mono mb-2">
-              <span className="text-gray-900">THREAT LEVEL</span>
-              <motion.span 
-                key={dynamicMetrics.threatLevel}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className={`font-medium ${
-                  dynamicMetrics.threatLevel === 'HIGH' ? 'text-red-400' :
-                  dynamicMetrics.threatLevel === 'MEDIUM' ? 'text-yellow-400' :
-                  'text-green-400'
-                }`}
+      {/* 7. Yearly Trends (Col 4, Row 2) */}
+      <CardWrapper title={"Yearly Trends"} maxHeight="max-h-[400px]" className="h-full">
+        {loading ? (
+          <div className="text-gray-400 text-sm font-mono animate-pulse px-2 py-4">Loading...</div>
+        ) : (
+          <div className="space-y-2">
+            {recentTrends.slice(0, 10).map((trend, i) => (
+              <motion.div
+                key={trend.year}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="list-item trend-item flex justify-between items-center text-xs font-mono p-2 bg-transparent rounded border border-gray-alpha-200 hover:border-cyan-500/20 transition-all duration-150"
               >
-                {dynamicMetrics.threatLevel}
-              </motion.span>
-            </div>
-            <div className="h-1.5 bg-gray-alpha-200 rounded-full overflow-hidden">
-              <motion.div 
-                className={`h-full rounded-full ${
-                  dynamicMetrics.threatLevel === 'HIGH' ? 'bg-gradient-to-r from-red-500 to-red-400' :
-                  dynamicMetrics.threatLevel === 'MEDIUM' ? 'bg-gradient-to-r from-yellow-500 to-yellow-400' :
-                  'bg-gradient-to-r from-green-500 to-green-400'
-                }`}
-                animate={{ width: `${dynamicMetrics.threatPercent}%` }}
-                transition={{ duration: 0.5 }}
-              />
-            </div>
-            <div className="mt-3 text-[10px] font-mono text-gray-900 uppercase">Recent Blocks</div>
-            <div className="mt-1 space-y-1">
-              <AnimatePresence mode="popLayout">
-                {dynamicMetrics.blockedBots.map((bot, i) => (
-                  <motion.div 
-                    key={bot}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 10 }}
-                    className="text-[10px] font-mono text-gray-1000 truncate"
-                  >
-                    {bot} <span className="text-red-400">blocked</span>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+                <span className="text-gray-1000 font-medium">{trend.year}</span>
+                <div className="flex gap-3">
+                  <span className="text-cyan-400 font-mono">{trend.repos_created} repos</span>
+                  <span className="text-yellow-400 font-mono">{formatNum(trend.avg_stars)} avg <span aria-hidden className="star-icon">⭐</span></span>
+                </div>
+              </motion.div>
+            ))}
           </div>
-        </StatCard>
-        <StatCard
-          title="Cache hits"
-          baseValue={baseValues.cacheHits}
-          incrementRate={incrementRates.cacheHits}
-          infoTitle="Cache Hits"
-          infoContent="Documentation and assets served from cache to contributors without fetching from origin servers. Dramatically improves download speed and reduces infrastructure load.\n\n• Reduced latency globally\n• Cost-effective content delivery"
-          className="flex-1"
-        >
-          <p className="text-gray-900 text-sm font-mono mt-1">Docs / assets served</p>
-          <div className="mt-3 pt-3 border-t border-gray-alpha-200">
-            <div className="flex justify-between items-center text-xs font-mono">
-              <span className="text-gray-900">HIT RATE</span>
-              <motion.span 
-                key={dynamicMetrics.hitRate.toFixed(1)}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-green-400 font-medium"
-              >
-                {dynamicMetrics.hitRate.toFixed(1)}%
-              </motion.span>
-            </div>
-            <div className="flex justify-between items-center text-xs font-mono mt-1">
-              <span className="text-gray-900">BANDWIDTH SAVED</span>
-              <span className="text-gray-1000">{dynamicMetrics.bandwidthSaved.toLocaleString()} TB</span>
-            </div>
-            <div className="flex justify-between items-center text-xs font-mono mt-1">
-              <span className="text-gray-900">AVG RESPONSE</span>
-              <motion.span 
-                key={dynamicMetrics.responseTime.toFixed(0)}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-cyan-400"
-              >
-                {dynamicMetrics.responseTime.toFixed(0)}ms
-              </motion.span>
-            </div>
-          </div>
-        </StatCard>
-      </div>
+        )}
+      </CardWrapper>
     </div>
   )
 }

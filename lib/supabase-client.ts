@@ -17,6 +17,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: false,
     autoRefreshToken: false,
   },
+  db: {
+    schema: 'public',
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'nexus-observatory',
+    },
+  },
 });
 
 // Types for our database tables

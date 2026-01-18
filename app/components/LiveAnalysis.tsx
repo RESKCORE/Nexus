@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { Info } from "lucide-react"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { LiveCommitTicker } from "./LiveCommitTicker"
+import CardWrapper from './CardWrapper'
 
 interface CommitMessage {
   message: string
@@ -77,50 +78,8 @@ export function LiveAnalysis() {
   }
 
   return (
-    <div className="bg-gray-alpha-100 p-4 md:p-6 w-full h-[320px] overflow-y-auto">
+    <CardWrapper title={"Global Sentiment Analysis"} maxHeight="max-h-[400px]" className="h-full">
       <div className="space-y-2">
-        <div className="flex items-start justify-between pr-0">
-          <h2 className="my-0 font-mono font-medium text-sm tracking-tight uppercase text-gray-1000">
-            Global Sentiment Analysis
-          </h2>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                aria-label="Learn more about Sentiment Analysis"
-                type="button"
-                className="p-1.5 m-0 bg-transparent text-gray-400 hover:text-cyan-400 border-none hover:bg-gray-800/50 transition-all duration-150 flex items-center justify-center outline-none rounded cursor-pointer shrink-0"
-              >
-                <Info className="h-5 w-5" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              side="left"
-              align="start"
-              sideOffset={8}
-              className="w-80 bg-gray-900/95 border border-gray-700 text-gray-200 shadow-2xl rounded-xl p-5"
-            >
-              <div className="space-y-3">
-                <h3 className="font-mono font-medium text-sm uppercase text-gray-100">
-                  Real-Time NLP Analysis
-                </h3>
-                <p className="text-sm text-gray-300 leading-relaxed">
-                  Uses Natural Language Processing (NLP) via the VADER sentiment algorithm to analyze commit messages from the GitHub Events API in real-time.
-                  <br /><br />
-                  • Fetches live GitHub push events every 10s<br />
-                  • Scores each commit message (-5 to +5)<br />
-                  • Aggregates global developer mood<br />
-                  • Pure JavaScript implementation (no Python)
-                </p>
-                {data && (
-                  <p className="text-xs text-gray-400 pt-2 border-t border-gray-700">
-                    Last analyzed: {data.totalEventsAnalyzed} events at {new Date(data.timestamp).toLocaleTimeString()}
-                  </p>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-
         {data ? (
           <>
             <div className="flex items-baseline gap-3">
@@ -147,7 +106,7 @@ export function LiveAnalysis() {
               </div>
               <div className="relative h-2 bg-gray-alpha-200 rounded-full overflow-hidden">
                 {/* Gradient background */}
-                <div 
+                <div
                   className="absolute inset-0 rounded-full"
                   style={{
                     background: 'linear-gradient(to right, #ef4444 0%, #737373 50%, #10b981 100%)'
@@ -203,9 +162,9 @@ export function LiveAnalysis() {
 
             {/* Live Commit Ticker */}
             <div className="mt-3 pt-3 border-t border-gray-alpha-200">
-              <LiveCommitTicker 
-                commits={data.recentCommits || []} 
-                isLoading={isLoading} 
+              <LiveCommitTicker
+                commits={data.recentCommits || []}
+                isLoading={isLoading}
               />
             </div>
           </>
@@ -213,6 +172,6 @@ export function LiveAnalysis() {
           <div className="text-gray-900 text-sm">Analysis unavailable</div>
         )}
       </div>
-    </div>
+    </CardWrapper>
   )
 }

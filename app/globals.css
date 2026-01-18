@@ -104,3 +104,58 @@ body {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* Custom scrollbar styles for cards */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 100, 100, 0.5) transparent;
+  /* Reserve layout space for the scrollbar so it occupies card space
+     instead of overlaying the content (works in modern browsers) */
+  scrollbar-gutter: stable both-edges;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  /* Slightly wider so it's easier to grab and visually occupies space */
+  width: 12px;
+  height: 12px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  /* subtle track so scrollbar appears to occupy the card edge */
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(100, 100, 100, 0.4);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 100, 100, 0.7);
+}
+
+.scrollbar-thin::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Fallback spacer for browsers without `scrollbar-gutter` support */
+.scrollbar-space {
+  padding-right: 14px; /* match (or slightly exceed) scrollbar width to avoid overlap */
+}
+
+/* Dark mode scrollbar */
+@media (prefers-color-scheme: dark) {
+  .scrollbar-thin {
+    scrollbar-color: rgba(150, 150, 150, 0.4) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(150, 150, 150, 0.3);
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(150, 150, 150, 0.6);
+  }
+}
